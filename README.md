@@ -13,6 +13,7 @@ The scripts were written so that they are easy to read and to modify. The code a
 ## Table of Contents
 
 - [Dependencies](#dependencies)
+- [Generate WireGuard Configs](#generate-wireguard-configs)
 - [Disclaimers](#disclaimers)
 - [Confirmed distributions](#confirmed-distributions)
 - [3rd Party Repositories](#3rd-party-repositories)
@@ -29,6 +30,69 @@ In order for the scripts to work (probably even if you do a manual setup), you w
  * `jq`
  * (only for WireGuard) `wireguard-tools` (`wg-quick` and `wireguard` kernel module)
  * (only for OpenVPN) `openvpn`
+
+## Generate WireGuard Configs (US)
+
+The `generate_us_configs.sh` script bulk-generates WireGuard config files for all PIA US servers.
+
+> **Why US only?** PIA enforces a limit of ~150 concurrent WireGuard keys per account. Generating configs for all ~375 global servers causes older keys to be silently evicted, leaving most configs non-functional. US servers alone total ~106 configs, well within the limit.
+
+### Usage
+
+```bash
+# Basic usage — configs are saved to ./configs/ by default
+PIA_USER="p1234567" PIA_PASS="your_password" ./generate_us_configs.sh
+
+# Specify a custom output directory
+PIA_USER="p1234567" PIA_PASS="your_password" ./generate_us_configs.sh /path/to/output
+
+# Use a pre-existing token instead of credentials
+PIA_TOKEN="xxxxx" ./generate_us_configs.sh
+```
+
+### What it does
+
+1. Authenticates with PIA to obtain a 24-hour token
+2. Fetches the public server list from PIA's API
+3. Filters to US regions only
+4. For each server: generates an ephemeral key pair, registers it with PIA's `/addKey` API, and writes a standard WireGuard `.conf` file
+
+### Output structure
+
+```
+configs/
+└── us/
+    ├── us-east-1.conf
+    ├── us-east-2.conf
+    ├── us-california-1.conf
+    ├── us-atlanta-1.conf
+    └── ...
+```
+
+### Environment variables
+
+| Variable | Required | Description |
+|---|---|---|
+| `PIA_USER` | Yes* | PIA account username |
+| `PIA_PASS` | Yes* | PIA account password |
+| `PIA_TOKEN` | Yes* | Pre-existing auth token (alternative to user/pass) |
+
+\* Provide either `PIA_USER` + `PIA_PASS`, or `PIA_TOKEN`.
+
+### Error handling and output
+
+- Color-coded output: green for success, red for failures
+- Progress counter showing `[n/total]` for each region
+- Server IP displayed on each line
+- End-of-run summary with counts of generated vs failed configs
+- Detailed list of every failed server with the failure reason (timeout, API rejection, invalid response, etc.)
+
+### Notes
+
+- Each config gets its own unique ephemeral WireGuard key pair
+- The auth token lasts 24 hours; configs may need to be regenerated periodically as PIA may expire WireGuard sessions server-side
+- Servers that are offline or unreachable will time out after 10 seconds and be logged as failures
+- The script requires `curl`, `jq`, and `wireguard-tools`
 
 ## Disclaimers
 
